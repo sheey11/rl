@@ -9,19 +9,19 @@ class Agent:
     actions = np.array(['l', 'r', 'u', 'd'])
 
     env_map = [
-        ['-', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'o'],
+        ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
+        ['-', '-', 'x', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
+        ['-', 'x', '-', 'x', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
+        ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', 'x', '-', '-'],
         ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
         ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
         ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
         ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
-        ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
-        ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
-        ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
-        ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
-        ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
-        ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
-        ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
-        ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
+        ['-', '-', '-', '-', 'x', '-', '-', '-', 'x', '-', '-', '-', '-', '-', '-'],
+        ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-', 'o', '-', '-', '-', '-'],
+        ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', 'x', '-', '-'],
+        ['-', '-', '-', '-', 'x', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
+        ['-', '-', '-', '-', '-', '-', '-', '-', 'x', '-', '-', '-', '-', '-', '-'],
         ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
         ['-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-'],
     ]
@@ -30,11 +30,16 @@ class Agent:
         self.alpha = alpha
         self.gamma = gamma
         self.epsilon = epsilon
-        self.q_table = pd.DataFrame(columns=self.actions, dtype=np.float64, index=pd.MultiIndex.from_tuples([], names=['y', 'x']))
+        self.q_table_1 = pd.DataFrame(columns=self.actions, dtype=np.float64, index=pd.MultiIndex.from_tuples([], names=['y', 'x']))
+        self.q_table_2 = pd.DataFrame(columns=self.actions, dtype=np.float64, index=pd.MultiIndex.from_tuples([], names=['y', 'x']))
 
     def ensure_qtable(self, state: Tuple[int, int]):
-        if state not in self.q_table.index:
-            self.q_table = self.q_table.append(
+        if state not in self.q_table_1.index:
+            self.q_table_1 = self.q_table_1.append(
+                pd.DataFrame(np.zeros((1, 4)), columns=self.actions, index=pd.MultiIndex.from_tuples([state], names=['y', 'x']))
+            )
+        if state not in self.q_table_2.index:
+            self.q_table_2 = self.q_table_2.append(
                 pd.DataFrame(np.zeros((1, 4)), columns=self.actions, index=pd.MultiIndex.from_tuples([state], names=['y', 'x']))
             )
 
@@ -48,9 +53,11 @@ class Agent:
         if np.random.uniform() < self.epsilon:
             act = np.random.choice(self.actions)
         else:
-            q_value = self.q_table.loc[state, :].values
-            maxq = q_value.max()
-            act = np.random.choice(self.actions[maxq == q_value])
+            q_value1 = self.q_table_1.loc[state, :].values
+            q_value2 = self.q_table_2.loc[state, :].values
+            q_value = q_value1 + q_value2
+            max_q = q_value.max()
+            act = np.random.choice(self.actions[max_q == q_value])
 
         if act == 'l':
             x = x - 1 if x > 0 else x
@@ -76,10 +83,18 @@ class Agent:
 
     def update_q_table(self, state: Tuple[int, int], action, reward, next_state: Tuple[int, int]):
         self.ensure_qtable(next_state)
-        q_predict = self.q_table.loc[state, action]
-        max_q = self.q_table.loc[next_state, :].values.max()
+        if np.random.normal() < 0.5:
+            active = self.q_table_1
+            modifier = self.q_table_2
+        else:
+            active = self.q_table_2
+            modifier = self.q_table_1
+
+        q_predict = active.loc[state, action]
+        max_idx = active.loc[next_state, :].argmax()
+        max_q = modifier.loc[next_state, self.actions[max_idx]]
         diff = self.alpha * (reward + self.gamma * max_q - q_predict)
-        self.q_table.loc[state, action] += diff
+        active.loc[state, action] += diff
 
     def draw(self, state):
         y, x = state
