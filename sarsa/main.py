@@ -1,7 +1,7 @@
 from sarsa import *
 import time
 
-agent = Sarsa()
+agent = Sarsa(expected_sarsa=True)
 
 state = (0, 0)
 episode = 1
